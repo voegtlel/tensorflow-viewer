@@ -27,12 +27,14 @@ class EventViewerWidget(QMainWindow):
         QSize(750, 750), QSize(1000, 1000), QSize(1500, 1500), QSize(2000, 2000)
     ]
 
-    def __init__(self, initial_files=None):
+    def __init__(self, initial_files=None, interactive_preload=False):
         # noinspection PyArgumentList
         super().__init__()
 
         #: :type: data.loader.DataLoader
         self.events_loader = None
+
+        self.interactive_preload = interactive_preload
 
         self._last_files = None
 
@@ -48,6 +50,7 @@ class EventViewerWidget(QMainWindow):
         self.event_widget = EventWidget(self.event_scroll_widget)
         self.event_scroll_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.event_scroll_widget.setWidget(self.event_widget)
+        self.event_widget.set_interactive_preload(self.interactive_preload)
 
         self.step_widget = StepWidget(central_widget)
         self.step_widget.stepChanged.connect(self.step_change)
@@ -158,7 +161,7 @@ class EventViewerWidget(QMainWindow):
     def load_files(self, paths):
         self.load_stop()
         self.event_widget.set_initial_loading(True)
-        self.events_loader = DataLoader(paths)
+        self.events_loader = DataLoader(paths, interactive_preload=self.interactive_preload)
         self._last_files = paths
         self.setWindowTitle(', '.join(paths))
         self.events_loader.load_done.connect(self.load_done)
@@ -243,6 +246,9 @@ class EventViewerWidget(QMainWindow):
         self.event_widget.set_lock_step_end(True)
         self.step_widget.set_lock_step_end(True)
         self.event_widget.set_initial_loading(False)
+        if not self.interactive_preload and self.events_loader is not None:
+            self.step_widget.setSteps(list(self.events_loader.steps))
+            self.event_widget.set_events(self.events_loader.tag_index)
 
     @except_print
     def load_status(self, status, progress):
@@ -309,9 +315,10 @@ class EventViewerWidget(QMainWindow):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('initial_file', action='store', nargs='?', default=None)  # optional positional argument
+    parser.add_argument('--interactive-preload', action='store_true', default=None)  # optional positional argument
 
     parsed_args, unparsed_args = parser.parse_known_args()
 
     app = QApplication(sys.argv)
-    ex = EventViewerWidget([parsed_args.initial_file] if parsed_args.initial_file else None)
+    ex = EventViewerWidget([parsed_args.initial_file] if parsed_args.initial_file else None, interactive_preload=parsed_args.interactive_preload)
     sys.exit(app.exec_())

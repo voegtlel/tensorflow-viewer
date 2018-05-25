@@ -4,6 +4,7 @@ import os
 from abc import ABC, abstractmethod
 
 from PyQt5.QtCore import QThread, pyqtSignal, QWaitCondition, QMutex, QThreadPool, QObject
+import tensorflow as tf
 from tensorflow.core.example import example_pb2
 from tensorflow.core.util import event_pb2
 from tensorflow.python import pywrap_tensorflow, compat
@@ -12,6 +13,10 @@ from tensorflow.python.lib.io.tf_record import TFRecordOptions
 
 from tensorflow_viewer.data.utils import MutexLock
 from tensorflow_viewer.utils import except_print
+
+
+from distutils.version import StrictVersion
+_new_tfrecord_interface = StrictVersion(tf.__version__) >= StrictVersion('1.8.0')
 
 
 class TFRecordReader:
@@ -29,8 +34,11 @@ class TFRecordReader:
 
     def __next__(self):
         try:
-            with errors.raise_exception_on_not_ok_status() as status:
-                self._reader.GetNext(status)
+            if _new_tfrecord_interface:
+                self._reader.GetNext()
+            else:
+                with errors.raise_exception_on_not_ok_status() as status:
+                    self._reader.GetNext(status)
             return self
         except errors.OutOfRangeError:
             raise StopIteration
@@ -452,9 +460,10 @@ class DataLoader(QThread):
         self._next_loader_index += 1
         return (index,)
 
-    def __init__(self, paths, load_interval=2500):
+    def __init__(self, paths, load_interval=2500, interactive_preload=False):
         super(DataLoader, self).__init__()
         self._load_interval = load_interval
+        self._interactive_preload = interactive_preload
         self._next_loader_index = 0
         #: :type: list[AbstractLoader]
         self._loaders = [get_loader(path, self._get_next_index()) for path in paths]
@@ -483,6 +492,7 @@ class DataLoader(QThread):
         self._steps = []
         # All tags
         self._tags = []
+        self._tag_types = []
 
         self._thread_pool = ThreadPool(self)
         self._pending_threads = []
@@ -543,8 +553,10 @@ class DataLoader(QThread):
             if entry.tag not in self._tag_index:
                 self._tag_index[entry.tag] = list()
                 self._tags.append(entry.tag)
-                print("Added tag:", entry.tag)
-                self.load_tag.emit(entry.tag, entry.type())
+                self._tag_types.append(entry.type())
+                if self._interactive_preload or not self._initial_load:
+                    print("Added tag:", entry.tag)
+                    self.load_tag.emit(entry.tag, entry.type())
             self._step_index[entry.step][entry.tag] = entry
             bisect.insort_right(self._tag_index[entry.tag], entry)
             stepidx = bisect.bisect_left(self._steps, entry.step)
@@ -554,7 +566,8 @@ class DataLoader(QThread):
         else:
             assert entry.tag not in self._global_tag_index
             self._global_tag_index[entry.tag] = entry
-            self.load_entry_global.emit(entry.tag, entry.type())
+            if self._interactive_preload or not self._initial_load:
+                self.load_entry_global.emit(entry.tag, entry.type())
 
     def _finish_iteration(self):
         total_read = sum(loader.bytes_loaded() for loader in self._loaders)
@@ -566,8 +579,9 @@ class DataLoader(QThread):
             print("Got additional iteration:", self._iteration)
             self.load_status.emit(self._iteration, 1.0)
         self._iteration += 1
-        for stepidx, iteration in self._pending_steps:
-            self.load_step.emit(stepidx, iteration)
+        if self._interactive_preload or not self._initial_load:
+            for stepidx, iteration in self._pending_steps:
+                self.load_step.emit(stepidx, iteration)
         self._pending_steps.clear()
 
     def _load_files(self):
@@ -586,12 +600,19 @@ class DataLoader(QThread):
             return False
 
         if self._initial_load:
+            if not self._interactive_preload:
+                for tag, tag_type in zip(self._tags, self._tag_types):
+                    print("Added tag:", tag)
+                    self.load_tag.emit(tag, tag_type)
+
+                for entry in self._global_tag_index.values():
+                    self.load_entry_global.emit(entry.tag, entry.type())
+
             print("Loaded file(s) initially")
             self.load_status.emit(self._iteration, 1.0)
             print("Load done")
             self.load_done.emit()
             self._initial_load = False
-
         return True
 
     @except_print

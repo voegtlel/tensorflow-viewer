@@ -167,6 +167,8 @@ class ScalarViewerWidget(QWidget):
     def __init__(self, parent=None):
         super(ScalarViewerWidget, self).__init__(parent)
 
+        self._interactive_preload = False
+
         self.scale_factor_x = 1.0
         self.scale_factor_y = 1.0
         self.offset = QPointF(0.5, 0.5)
@@ -574,6 +576,8 @@ class ScalarViewerWidget(QWidget):
 
     @except_print
     def _data_updated(self, new_index, loader_id):
+        if self._initial_loading and not self._interactive_preload:
+            return
         #if self._initial_loading and new_index % 10 != 0:
         #    return
         if self._smoothing_kernel is None and self._smoothing is not None and self._smoothing > 0:
@@ -599,7 +603,11 @@ class ScalarViewerWidget(QWidget):
 
     def set_initial_loading(self, is_initial_loading):
         self._initial_loading = is_initial_loading
-        #self.set_global_data(self._scalar_data, self._step)
+        if not self._interactive_preload:
+            self.set_global_data(self._scalar_data, self._step)
+
+    def set_interactive_preload(self, interactive_preload):
+        self._interactive_preload = interactive_preload
 
     def set_global_data(self, data, step):
         """

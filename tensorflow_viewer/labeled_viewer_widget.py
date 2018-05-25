@@ -173,6 +173,7 @@ class LabeledViewerWidget(QWidget, OrderedItem):
     def _global_step_added(self, new_index, loader_id):
         self._step_widget.setSteps(self._steps[0].steps())
 
+    @except_print
     def _set_steps(self, steps, force_update):
         if len(self._steps) == 1 and not self._steps[0].is_per_step():
             self._steps[0].signals.step_added.disconnect(self._global_step_added)
@@ -201,6 +202,7 @@ class LabeledViewerWidget(QWidget, OrderedItem):
             self._steps = steps
             self._step_widget.setSteps([step.step for step in steps], has_change)
 
+    @except_print
     def set_steps(self, steps):
         """
         Sets the data array when the local slider is enabled
@@ -216,6 +218,7 @@ class LabeledViewerWidget(QWidget, OrderedItem):
                     self._set_steps(tag_steps, False)
                 tag.steps = tag_steps
 
+    @except_print
     def set_global_step(self, step):
         """
         Sets the data array when the local slider is enabled
@@ -227,6 +230,9 @@ class LabeledViewerWidget(QWidget, OrderedItem):
 
     def set_initial_loading(self, initial_loading):
         self._viewer.set_initial_loading(initial_loading)
+
+    def set_interactive_preload(self, interactive_preload):
+        self._viewer.set_interactive_preload(interactive_preload)
 
     def set_lock_step_end(self, lock):
         self._step_widget.set_lock_step_end(lock)

@@ -19,6 +19,8 @@ class EventWidget(QWidget):
 
         self._viewer_preferred_size = QSize(200, 200)
 
+        self._interactive_preload = False
+
         self.layout = FlowLayout(self)
         self.setLayout(self.layout)
 
@@ -61,6 +63,7 @@ class EventWidget(QWidget):
             viewer.set_preferred_size(self._viewer_preferred_size)
             viewer.set_allow_steps(self._allow_step_select)
             viewer.set_smoothing(self._smoothing)
+            viewer.set_interactive_preload(self._interactive_preload)
             self.layout.addWidget(viewer)
             self._tag_viewer[tag[0]] = viewer
         else:
@@ -102,6 +105,11 @@ class EventWidget(QWidget):
     def set_initial_loading(self, initial_loading):
         for viewer in self._tag_viewer.values():
             viewer.set_initial_loading(initial_loading)
+
+    def set_interactive_preload(self, interactive_preload):
+        self._interactive_preload = interactive_preload
+        for viewer in self._tag_viewer.values():
+            viewer.set_interactive_preload(interactive_preload)
 
     def save_files(self, parent_path):
         for tag, viewer in self._tag_viewer.items():

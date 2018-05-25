@@ -149,6 +149,9 @@ class ImageViewerWidget(QWidget):
     def set_initial_loading(self, initial_loading):
         pass
 
+    def set_interactive_preload(self, interactive_preload):
+        pass
+
     def set_step_data(self, step_data):
         """
         Args:
@@ -227,4 +230,5 @@ class ImageViewerWidget(QWidget):
         self._set_image(None, None)
 
     def save_file(self, path):
-        self.pixmap.save(path)
+        if self.pixmap is not None:
+            self.pixmap.save(path)
