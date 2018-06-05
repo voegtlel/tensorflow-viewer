@@ -30,7 +30,7 @@ class StructuredTag:
 
     def add_tag(self, tag_path):
         assert self.tag_name == tag_path[0], "Invalid path {} for {}".format(self.tag_name, tag_path)
-        assert len(tag_path) > self.tag_index
+        assert len(tag_path) > self.tag_index, "Invalid path {} for {}".format(self.tag_name, tag_path)
         assert self.tag_values is not None
         assert self.sub_tags is not None
         tag_key = tag_path[self.tag_index]

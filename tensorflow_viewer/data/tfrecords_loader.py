@@ -1,11 +1,32 @@
 from io import BytesIO
 
-from PIL import Image
+from PIL import Image, ImageMath
 from tensorflow.core.example import example_pb2
 from tensorflow.python.framework.errors_impl import DataLossError
 
 from tensorflow_viewer.data.image_data import ImageEntry
 from tensorflow_viewer.data.loader import AbstractLoader, loaders, LoaderFile
+
+
+DEFAULT_MASK_PALETTE_DATA = (
+    141, 211, 199,
+    255, 255, 179,
+    190, 186, 218,
+    251, 128, 114,
+    128, 177, 211,
+    253, 180, 98,
+    179, 222, 105,
+    252, 205, 229,
+    217, 217, 217,
+    188, 128, 189,
+    204, 235, 197,
+    255, 237, 111,
+)
+
+DEFAULT_MASK_PALETTE_DATA_RAW = bytearray(
+    list(DEFAULT_MASK_PALETTE_DATA) +
+    [255] * (256*3 - len(DEFAULT_MASK_PALETTE_DATA))
+)
 
 
 class TFRecordEntryImage(ImageEntry):
@@ -120,6 +141,8 @@ class TFRecordEntryMask(ImageEntry):
 
             info = "{}\nName: {}".format(self.tag_str(), self.name)
 
+            mask_channels = int(8)
+
             if "mask_raw" in example.features.feature.keys():
                 info += "\nCompressed: False"
                 mask_string = (example.features.feature['mask_raw']
@@ -127,7 +150,11 @@ class TFRecordEntryMask(ImageEntry):
                     .value[0])
                 img_size = width*height
                 mask = mask_string[self._mask_idx*img_size:(self._mask_idx + 1)*img_size]
-                return self.image_raw_to_result(mask, height, width, info)
+
+                mask_data = Image.frombytes('L', (height, width), mask, 'raw', 'L', 1)
+                factor = 255 // mask_channels
+                mask_data = ImageMath.eval("convert(a*{}, 'L')".format(factor), a=mask_data)
+                return self.image_to_result(mask_data, info)
             elif "mask_compressed" in example.features.feature.keys():
                 info += "\nCompressed: True"
                 mask_string = (example.features.feature['mask_compressed']
@@ -136,7 +163,12 @@ class TFRecordEntryMask(ImageEntry):
                 mask_data = Image.open(BytesIO(mask_string))
                 if mask_data.mode != 'L':
                     return True, None
-                mask_data = mask_data.crop((0, self._mask_idx * height, height, width))
+                mask_data = mask_data.crop((0, self._mask_idx * height, width, height))
+
+                mask_data.putpalette(DEFAULT_MASK_PALETTE_DATA_RAW)
+                mask_data = mask_data.convert(mode='RGB')
+                #factor = 255 // mask_channels
+                #mask_data = ImageMath.eval("convert(a*{}, 'L')".format(factor), a=mask_data)
                 return self.image_to_result(mask_data, info)
         return True, None
 

@@ -247,8 +247,11 @@ class EventViewerWidget(QMainWindow):
         self.step_widget.set_lock_step_end(True)
         self.event_widget.set_initial_loading(False)
         if not self.interactive_preload and self.events_loader is not None:
-            self.step_widget.setSteps(list(self.events_loader.steps))
+            new_steps = self.events_loader.steps
+            self.step_widget.setSteps(new_steps)
             self.event_widget.set_events(self.events_loader.tag_index)
+            if len(new_steps) > 1:
+                self.step_widget.setStep(new_steps[-1])
 
     @except_print
     def load_status(self, status, progress):
@@ -257,7 +260,7 @@ class EventViewerWidget(QMainWindow):
     @except_print
     def load_step(self, insert_index, step):
         if self.events_loader is not None:
-            self.step_widget.setSteps(list(self.events_loader.steps))
+            self.step_widget.setSteps(self.events_loader.steps)
             self.event_widget.set_events(self.events_loader.tag_index)
 
     @except_print
