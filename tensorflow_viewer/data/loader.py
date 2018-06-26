@@ -67,6 +67,7 @@ class ThreadPool:
 
     def start(self, runnable):
         with MutexLock(self._mutex):
+            @except_print
             def on_done():
                 with MutexLock(self._mutex):
                     self._pending.remove(runnable)
@@ -230,10 +231,16 @@ class LoaderFile:
         return self._last_offset != self.size()
 
     def size(self):
-        return os.stat(self.path).st_size
+        try:
+            return os.stat(self.path).st_size
+        except FileNotFoundError:
+            return 0
 
     def last_change(self):
-        return os.stat(self.path).st_mtime
+        try:
+            return os.stat(self.path).st_mtime
+        except FileNotFoundError:
+            return 0
 
     def set_offset(self, offset):
         self._last_offset = offset
@@ -494,6 +501,10 @@ class DataLoader(QThread):
         self._tags = []
         self._tag_types = []
 
+        # Tags recently added but not notified
+        self._pending_load_entry_global = []
+        self._pending_load_tag = []
+
         self._thread_pool = ThreadPool(self)
         self._pending_threads = []
 
@@ -557,6 +568,8 @@ class DataLoader(QThread):
                 if self._interactive_preload or not self._initial_load:
                     print("Added tag:", entry.tag)
                     self.load_tag.emit(entry.tag, entry.type())
+                else:
+                    self._pending_load_tag.append((entry.tag, entry.type()))
             self._step_index[entry.step][entry.tag] = entry
             bisect.insort_right(self._tag_index[entry.tag], entry)
             stepidx = bisect.bisect_left(self._steps, entry.step)
@@ -568,6 +581,8 @@ class DataLoader(QThread):
             self._global_tag_index[entry.tag] = entry
             if self._interactive_preload or not self._initial_load:
                 self.load_entry_global.emit(entry.tag, entry.type())
+            else:
+                self._pending_load_entry_global.append(entry)
 
     def _finish_iteration(self):
         total_read = sum(loader.bytes_loaded() for loader in self._loaders)
@@ -601,12 +616,14 @@ class DataLoader(QThread):
 
         if self._initial_load:
             if not self._interactive_preload:
-                for tag, tag_type in zip(self._tags, self._tag_types):
+                for tag, tag_type in self._pending_load_tag:
                     print("Added tag:", tag)
                     self.load_tag.emit(tag, tag_type)
+                self._pending_load_tag.clear()
 
-                for entry in self._global_tag_index.values():
+                for entry in self._pending_load_entry_global:
                     self.load_entry_global.emit(entry.tag, entry.type())
+                self._pending_load_entry_global.clear()
 
             print("Loaded file(s) initially")
             self.load_status.emit(self._iteration, 1.0)

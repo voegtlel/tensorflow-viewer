@@ -113,6 +113,7 @@ class ImageEntry(PerStepEntry):
         if self._image_data_result is None:
             self._image_data_result = ImageDataFuture(self, self._thread_pool)
 
+            @except_print
             def on_done():
                 self._image_data_result = None
             self._image_data_result.signals.done.connect(on_done)

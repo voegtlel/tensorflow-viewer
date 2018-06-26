@@ -577,6 +577,7 @@ class ScalarViewerWidget(QWidget):
     @except_print
     def _data_updated(self, new_index, loader_id):
         if self._initial_loading and not self._interactive_preload:
+            print("_data_updated: ignore")
             return
         #if self._initial_loading and new_index % 10 != 0:
         #    return
@@ -605,6 +606,7 @@ class ScalarViewerWidget(QWidget):
         self._initial_loading = is_initial_loading
         if not self._interactive_preload:
             self.set_global_data(self._scalar_data, self._step)
+            print("set_initial_loading: Set global data")
 
     def set_interactive_preload(self, interactive_preload):
         self._interactive_preload = interactive_preload
@@ -617,22 +619,22 @@ class ScalarViewerWidget(QWidget):
         """
         if self._smoothing_kernel is None and self._smoothing is not None and self._smoothing > 0:
             self.make_smoothing_kernel()
-        if data != self._scalar_data:
-            if self._scalar_data is not None:
-                self._scalar_data.signals.step_added.disconnect(self._data_updated)
-                self._scalar_data = None
-                self._data = []
 
-            if data is not None:
-                assert not data.is_per_step()
-                self._scalar_data = data
-                for loader_id in data.loader_ids():
-                    data = ScalarDisplayData(self._scalar_data, loader_id)
-                    data.update_range(self._min, self._range)
-                    self._data.append(data)
-                for data in self._data:
-                    data.update(self._smoothing_kernel, self._min, self._range)
-                self._scalar_data.signals.step_added.connect(self._data_updated)
+        if self._scalar_data is not None:
+            self._scalar_data.signals.step_added.disconnect(self._data_updated)
+            self._scalar_data = None
+            self._data = []
+
+        if data is not None:
+            assert not data.is_per_step()
+            self._scalar_data = data
+            for loader_id in data.loader_ids():
+                data = ScalarDisplayData(self._scalar_data, loader_id)
+                data.update_range(self._min, self._range)
+                self._data.append(data)
+            for data in self._data:
+                data.update(self._smoothing_kernel, self._min, self._range)
+            self._scalar_data.signals.step_added.connect(self._data_updated)
         self._step = step
         self.update()
 
